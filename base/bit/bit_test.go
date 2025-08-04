@@ -192,3 +192,300 @@ func TestBitmaskConfig(t *testing.T) {
 		})
 	}
 }
+
+// TestXORFeatures 测试异或运算的两个核心特性：翻转特定位、判断符号是否相同
+func TestXORFeatures(t *testing.T) {
+	// 测试1：异或运算翻转特定位（前8位，从MSB开始）
+	t.Run("flip_bits", func(t *testing.T) {
+		var a uint16 = 0xCEFF  // 二进制：11001110 11111111
+		mask := uint16(0xFF00) // 掩码：11111111 00000000（前8位为1）
+		a ^= mask              // 异或运算：翻转前8位
+
+		expected := uint16(0x31FF) // 预期结果：00110001 11111111
+		if a != expected {
+			t.Errorf("特定位翻转失败\n原始值: 0x%X\n掩码: 0x%X\n实际结果: 0x%X\n预期结果: 0x%X",
+				0xCEFF, mask, a, expected)
+		}
+		t.Logf("特定位翻转成功\n原始值: 0x%X → 异或0x%X → 结果: 0x%X", 0xCEFF, mask, a)
+	})
+
+	// 测试2：异或运算判断两个整数的符号是否相同
+	t.Run("check_sign", func(t *testing.T) {
+		// 测试用例：(a, b, 预期符号是否相同)
+		testCases := []struct {
+			name     string
+			a, b     int
+			expected bool
+		}{
+			{"均为正数", 12, 25, true},
+			{"均为负数", -12, -25, true},
+			{"一正一负", -12, 25, false},
+			{"一负一正", 12, -25, false},
+			{"包含零（零视为正数）", 0, -5, false},
+			{"零与正数", 0, 5, true},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				// 核心逻辑：(a ^ b) >= 0 表示符号相同
+				actual := (tc.a ^ tc.b) >= 0
+				if actual != tc.expected {
+					t.Errorf("符号判断错误\na=%d, b=%d\n实际: %v\n预期: %v",
+						tc.a, tc.b, actual, tc.expected)
+				}
+				t.Logf("符号判断正确\na=%d, b=%d → 符号%s",
+					tc.a, tc.b, map[bool]string{true: "相同", false: "不同"}[actual])
+			})
+		}
+	})
+}
+
+// TestBitwiseNot 测试Go中的一元按位取反运算符^
+// 验证^a对变量a的所有位进行取反操作（0变1，1变0）
+func TestBitwiseNot(t *testing.T) {
+	// 测试用例：原始值、预期取反结果（针对byte类型）
+	testCases := []struct {
+		name     string
+		input    byte
+		expected byte
+	}{
+		{
+			name:     "0x0F取反",
+			input:    0x0F, // 二进制：00001111
+			expected: 0xF0, // 二进制：11110000
+		},
+		{
+			name:     "0x00取反",
+			input:    0x00, // 二进制：00000000
+			expected: 0xFF, // 二进制：11111111
+		},
+		{
+			name:     "0xFF取反",
+			input:    0xFF, // 二进制：11111111
+			expected: 0x00, // 二进制：00000000
+		},
+		{
+			name:     "0xAB取反",
+			input:    0xAB, // 二进制：10101011
+			expected: 0x54, // 二进制：01010100
+		},
+	}
+
+	// 测试一元^的取反功能
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := ^tc.input // 执行按位取反操作
+
+			// 验证结果是否符合预期
+			if result != tc.expected {
+				t.Errorf("取反结果错误\n原始值: 0x%X (%08b)\n实际结果: 0x%X (%08b)\n预期结果: 0x%X (%08b)",
+					tc.input, tc.input,
+					result, result,
+					tc.expected, tc.expected)
+			} else {
+				t.Logf("取反成功\n原始值: 0x%X (%08b) → 取反后: 0x%X (%08b)",
+					tc.input, tc.input,
+					result, result)
+			}
+		})
+	}
+
+	// 单独测试单个位的翻转（利用二元^运算符）
+	t.Run("单个位翻转", func(t *testing.T) {
+		// 测试用例：(原始位值, 翻转后预期值)
+		bitTests := []struct {
+			bit      int
+			expected int
+		}{
+			{0, 1}, // 0与1异或 → 1
+			{1, 0}, // 1与1异或 → 0
+		}
+
+		for _, bt := range bitTests {
+			result := 1 ^ bt.bit // 用二元^实现单个位翻转
+			if result != bt.expected {
+				t.Errorf("位翻转错误\n原始位: %d → 翻转后: %d, 预期: %d",
+					bt.bit, result, bt.expected)
+			} else {
+				t.Logf("位翻转成功\n原始位: %d → 翻转后: %d", bt.bit, result)
+			}
+		}
+	})
+}
+
+// TestAndNotOperator 测试按位与非运算符&^的功能
+// 验证&^是否能根据第二个操作数清除第一个操作数的特定位
+func TestAndNotOperator(t *testing.T) {
+	// 测试用例：(原始值a, 掩码b, 预期结果)
+	testCases := []struct {
+		name     string
+		a        byte
+		b        byte
+		expected byte
+	}{
+		{
+			name:     "清除低4位",
+			a:        0xAB, // 二进制：10101011
+			b:        0x0F, // 掩码：00001111（低4位为1，用于清除）
+			expected: 0xA0, // 结果：10100000（低4位被清除为0）
+		},
+		{
+			name:     "清除高4位",
+			a:        0xAB, // 10101011
+			b:        0xF0, // 11110000（高4位为1）
+			expected: 0x0B, // 00001011（高4位被清除为0）
+		},
+		{
+			name:     "不清除任何位（b全为0）",
+			a:        0xAB, // 10101011
+			b:        0x00, // 00000000
+			expected: 0xAB, // 保留原始值
+		},
+		{
+			name:     "清除所有位（b全为1）",
+			a:        0xAB, // 10101011
+			b:        0xFF, // 11111111
+			expected: 0x00, // 所有位被清除为0
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// 执行&^=操作（等价于 a = a &^ tc.b）
+			result := tc.a
+			result &^= tc.b
+
+			// 验证结果
+			if result != tc.expected {
+				t.Errorf("与非运算结果错误\n原始值a: 0x%X (%08b)\n掩码b: 0x%X (%08b)\n实际结果: 0x%X (%08b)\n预期结果: 0x%X (%08b)",
+					tc.a, tc.a,
+					tc.b, tc.b,
+					result, result,
+					tc.expected, tc.expected)
+			} else {
+				t.Logf("与非运算成功\n原始值a: 0x%X (%08b) &^ 掩码b: 0x%X (%08b) → 结果: 0x%X (%08b)",
+					tc.a, tc.a,
+					tc.b, tc.b,
+					result, result)
+			}
+		})
+	}
+}
+
+// TestShiftOperators 测试移位运算符<<和>>的功能及应用
+func TestShiftOperators(t *testing.T) {
+	// 子测试1：左移基本功能（无符号数）
+	t.Run("left_shift_basic", func(t *testing.T) {
+		var a int8 = 3 // 二进制：00000011
+		testCases := []struct {
+			shift  int
+			expect int8
+			binary string
+		}{
+			{1, 6, "00000110"},
+			{2, 12, "00001100"},
+			{3, 24, "00011000"},
+		}
+		for _, tc := range testCases {
+			result := a << tc.shift
+			if result != tc.expect {
+				t.Errorf("左移%d位错误\n原始值: %d (%08b)\n实际结果: %d (%08b)\n预期结果: %d (%s)",
+					tc.shift, a, a, result, result, tc.expect, tc.binary)
+			}
+		}
+	})
+
+	// 子测试2：右移基本功能（无符号数，逻辑移位）
+	t.Run("right_shift_unsigned", func(t *testing.T) {
+		var a uint8 = 120 // 二进制：01111000
+		testCases := []struct {
+			shift  int
+			expect uint8
+			binary string
+		}{
+			{1, 60, "00111100"},
+			{2, 30, "00011110"},
+		}
+		for _, tc := range testCases {
+			result := a >> tc.shift
+			if result != tc.expect {
+				t.Errorf("右移%d位错误（无符号数）\n原始值: %d (%08b)\n实际结果: %d (%08b)\n预期结果: %d (%s)",
+					tc.shift, a, a, result, result, tc.expect, tc.binary)
+			}
+		}
+	})
+
+	// 子测试3：右移（有符号数，算术移位）
+	t.Run("right_shift_signed", func(t *testing.T) {
+		var a int8 = -8 // 二进制：11111000（补码）
+		testCases := []struct {
+			shift  int
+			expect int8
+			binary string // 算术移位：高位补符号位1
+		}{
+			{1, -4, "11111100"},
+			{2, -2, "11111110"},
+		}
+		for _, tc := range testCases {
+			result := a >> tc.shift
+			if result != tc.expect {
+				t.Errorf("右移%d位错误（有符号数）\n原始值: %d (%08b)\n实际结果: %d (%08b)\n预期结果: %d (%s)",
+					tc.shift, a, a, result, result, tc.expect, tc.binary)
+			}
+		}
+	})
+
+	// 子测试4：移位与乘除法（2^n）
+	t.Run("shift_mult_div", func(t *testing.T) {
+		// 左移 = 乘法（a << n = a * 2^n）
+		{
+			a := 12
+			result := a << 2 // 12 * 4 = 48
+			if result != 48 {
+				t.Errorf("左移2位乘法错误\n原始值: %d, 实际结果: %d, 预期: 48", a, result)
+			}
+		}
+		// 右移 = 除法（a >> n = a / 2^n）
+		{
+			a := 200
+			result := a >> 1 // 200 / 2 = 100
+			if result != 100 {
+				t.Errorf("右移1位除法错误\n原始值: %d, 实际结果: %d, 预期: 100", a, result)
+			}
+		}
+	})
+
+	// 子测试5：结合|和<<设置特定位（第n位）
+	t.Run("set_bit_with_or_shift", func(t *testing.T) {
+		var a int8 = 8 // 二进制：00001000
+		n := 2         // 要设置的位（从0开始，第2位）
+		a |= 1 << n    // 00001000 | 00000100 = 00001100
+		expected := int8(12)
+		if a != expected {
+			t.Errorf("设置第%d位错误\n结果: %d (%08b), 预期: %d (00001100)",
+				n, a, a, expected)
+		}
+	})
+
+	// 子测试6：结合&和<<测试特定位是否设置
+	t.Run("check_bit_with_and_shift", func(t *testing.T) {
+		var a int8 = 12 // 二进制：00001100（第2位为1）
+		n := 2
+		isSet := a&(1<<n) != 0 // 00001100 & 00000100 = 00000100 ≠ 0 → true
+		if !isSet {
+			t.Errorf("测试第%d位错误\n预期: 已设置, 实际: 未设置", n)
+		}
+	})
+
+	// 子测试7：结合&^和<<清除特定位
+	t.Run("clear_bit_with_andnot_shift", func(t *testing.T) {
+		var a int8 = 13 // 二进制：00001101（第2位为1）
+		n := 2
+		a &^= 1 << n // 00001101 &^ 00000100 = 00001001
+		expected := int8(9)
+		if a != expected {
+			t.Errorf("清除第%d位错误\n结果: %d (%08b), 预期: %d (00001001)",
+				n, a, a, expected)
+		}
+	})
+}
